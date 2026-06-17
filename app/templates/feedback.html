@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-xl font-semibold mb-1">不具合・要望を報告する</h1>
+<p class="text-sm text-slate-500 mb-4">
+  あなたの報告はテストになり、IT のレビューを経て修正・リリースされます。進捗は「マイ報告」で追えます。
+</p>
+
+{% if error %}
+<div class="mb-4 rounded border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-700">
+  {{ error }}
+</div>
+{% endif %}
+
+<form method="post" action="/feedback" enctype="multipart/form-data"
+      class="bg-white rounded border p-4 space-y-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+  <div>
+    <label class="block text-sm font-medium mb-1">タイトル</label>
+    <input name="title" required class="w-full border rounded px-3 py-2"
+           placeholder="例: 同じ時間に二重予約できてしまう" />
+  </div>
+  <div>
+    <label class="block text-sm font-medium mb-1">操作手順(箇条書き)</label>
+    <textarea name="steps" rows="4" required class="w-full border rounded px-3 py-2"
+              placeholder="1. 会議室Aを10-11時で予約&#10;2. 同じ枠でもう一度予約する"></textarea>
+  </div>
+  <div class="grid grid-cols-2 gap-4">
+    <div>
+      <label class="block text-sm font-medium mb-1">想定結果(TOBE)</label>
+      <textarea name="tobe" rows="3" required class="w-full border rounded px-3 py-2"
+                placeholder="2回目は重複エラーになるはず"></textarea>
+    </div>
+    <div>
+      <label class="block text-sm font-medium mb-1">実際の結果(ASIS)</label>
+      <textarea name="asis" rows="3" required class="w-full border rounded px-3 py-2"
+                placeholder="2回目も予約できてしまった"></textarea>
+    </div>
+  </div>
+  <div>
+    <label class="block text-sm font-medium mb-1">スクリーンショット(任意)</label>
+    <input type="file" name="screenshot" accept="image/png,image/jpeg"
+           class="w-full text-sm" />
+  </div>
+  <button type="submit" class="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-700">
+    報告する
+  </button>
+</form>
+{% endblock %}

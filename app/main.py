@@ -1,19 +1,25 @@
 """会議室予約システム(FastAPI)。"""
 import datetime as dt
 import os
+import uuid
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
+from app import screenshots, security, tickets
 from app.auth import get_current_user
 from app.db import get_db
+from app.gitref import current_commit_sha
 from app.models import Reservation, Room, User
 from app.pricing import calculate_price
 from app.services import cancel_reservation, create_reservation
+from app.state_machine import TicketState
+
+SCREENSHOT_DIR = Path(__file__).resolve().parent.parent / "var" / "screenshots"
 
 app = FastAPI(title="会議室予約システム")
 app.add_middleware(
@@ -95,3 +101,151 @@ def post_cancel(
     except ValueError:
         pass
     return RedirectResponse("/my", status_code=303)
+
+
+# ---- フィードバック(ユーザから見える CI/CD の入口と進捗) ----
+
+
+@app.get("/feedback")
+def feedback_form(
+    request: Request,
+    user: User = Depends(get_current_user),
+    error: str | None = None,
+):
+    return templates.TemplateResponse(
+        request,
+        "feedback.html",
+        {"user": user, "csrf_token": security.issue_csrf_token(request), "error": error},
+    )
+
+
+@app.post("/feedback")
+async def post_feedback(
+    request: Request,
+    csrf_token: str = Form(""),
+    title: str = Form(...),
+    steps: str = Form(...),
+    tobe: str = Form(...),
+    asis: str = Form(...),
+    screenshot: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    try:
+        security.verify_csrf(request, csrf_token)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    try:
+        security.check_rate_limit(f"feedback:{user.id}")
+    except PermissionError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+
+    if tickets.count_open_tickets(db, user_id=user.id) >= tickets.MAX_OPEN_TICKETS:
+        return templates.TemplateResponse(
+            request,
+            "feedback.html",
+            {
+                "user": user,
+                "csrf_token": security.issue_csrf_token(request),
+                "error": "未完了の報告が多すぎます。処理を待ってから送信してください。",
+            },
+            status_code=400,
+        )
+
+    screenshot_path: str | None = None
+    if screenshot is not None and screenshot.filename:
+        raw = await screenshot.read()
+        try:
+            clean_png = screenshots.validate_and_process(raw)
+        except ValueError as exc:
+            return templates.TemplateResponse(
+                request,
+                "feedback.html",
+                {
+                    "user": user,
+                    "csrf_token": security.issue_csrf_token(request),
+                    "error": f"スクリーンショットを受け付けられません: {exc}",
+                },
+                status_code=400,
+            )
+        SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+        fname = f"{uuid.uuid4().hex}.png"
+        (SCREENSHOT_DIR / fname).write_bytes(clean_png)
+        screenshot_path = fname
+
+    tickets.create_ticket(
+        db,
+        user_id=user.id,
+        title=title,
+        steps=steps,
+        tobe=tobe,
+        asis=asis,
+        screenshot_path=screenshot_path,
+        base_commit_sha=current_commit_sha(),
+    )
+    return RedirectResponse("/tickets", status_code=303)
+
+
+@app.get("/tickets")
+def ticket_list(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    rows = [
+        {"ticket": t, "state_label": TicketState[t.state].value}
+        for t in tickets.list_user_tickets(db, user_id=user.id)
+    ]
+    return templates.TemplateResponse(
+        request, "tickets.html", {"rows": rows, "user": user}
+    )
+
+
+@app.get("/tickets/{ticket_id}")
+def ticket_detail(
+    ticket_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    try:
+        ticket = tickets.get_user_ticket(db, ticket_id=ticket_id, user_id=user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    timeline = [
+        {"label": TicketState[h.state].value, "note": h.note, "at": h.created_at}
+        for h in ticket.history
+    ]
+    return templates.TemplateResponse(
+        request,
+        "ticket_detail.html",
+        {
+            "ticket": ticket,
+            "state_label": TicketState[ticket.state].value,
+            "timeline": timeline,
+            "user": user,
+        },
+    )
+
+
+@app.get("/tickets/{ticket_id}/screenshot")
+def ticket_screenshot(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """所有者本人のみがスクリーンショットを取得できる(代理取得・IDOR 対策)。"""
+    try:
+        ticket = tickets.get_user_ticket(db, ticket_id=ticket_id, user_id=user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    if not ticket.screenshot_path:
+        raise HTTPException(status_code=404, detail="スクリーンショットがありません")
+
+    path = SCREENSHOT_DIR / ticket.screenshot_path
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="ファイルが見つかりません")
+    return FileResponse(path, media_type="image/png")

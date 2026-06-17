@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-xl font-semibold">マイ報告</h1>
+  <a href="/feedback" class="text-sm bg-blue-600 text-white rounded px-3 py-1.5 hover:bg-blue-700">
+    新しく報告する
+  </a>
+</div>
+
+{% if rows %}
+<ul class="space-y-2">
+  {% for row in rows %}
+  <li class="bg-white rounded border p-4 flex items-center justify-between">
+    <div>
+      <a href="/tickets/{{ row.ticket.id }}" class="font-medium text-blue-600 hover:underline">
+        {{ row.ticket.title }}
+      </a>
+      <div class="text-xs text-slate-400 mt-1">
+        #{{ row.ticket.id }} ・ {{ row.ticket.created_at.strftime("%Y-%m-%d %H:%M") }}
+      </div>
+    </div>
+    <span class="text-sm rounded-full bg-slate-100 px-3 py-1">{{ row.state_label }}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="text-slate-500">まだ報告はありません。</p>
+{% endif %}
+{% endblock %}

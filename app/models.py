@@ -39,3 +39,46 @@ class Reservation(Base):
 
     room: Mapped[Room] = relationship()
     user: Mapped[User] = relationship()
+
+
+class Ticket(Base):
+    """ユーザのフィードバック報告(構造化テンプレート)。"""
+
+    __tablename__ = "tickets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    steps: Mapped[str] = mapped_column(String(4000), nullable=False)  # 操作手順一覧
+    tobe: Mapped[str] = mapped_column(String(2000), nullable=False)  # 想定結果
+    asis: Mapped[str] = mapped_column(String(2000), nullable=False)  # 実際の結果
+    screenshot_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    state: Mapped[str] = mapped_column(String(40), nullable=False, default="RECEIVED")
+    base_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: dt.datetime.now(dt.timezone.utc)
+    )
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: dt.datetime.now(dt.timezone.utc)
+    )
+
+    user: Mapped[User] = relationship()
+    history: Mapped[list[TicketHistory]] = relationship(
+        back_populates="ticket", order_by="TicketHistory.created_at"
+    )
+
+
+class TicketHistory(Base):
+    """チケットの状態遷移履歴(ステータスページのタイムライン)。"""
+
+    __tablename__ = "ticket_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id"), nullable=False)
+    state: Mapped[str] = mapped_column(String(40), nullable=False)
+    note: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: dt.datetime.now(dt.timezone.utc)
+    )
+
+    ticket: Mapped[Ticket] = relationship(back_populates="history")
