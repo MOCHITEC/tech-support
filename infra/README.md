@@ -98,14 +98,9 @@ terraform output deployer_service_account     # → auth アクションの serv
 `.github/workflows/deploy.yml` の `google-github-actions/auth` に上記2値を設定する(workflow は別途作成)。
 
 ### 5-4. ブランチ保護(任意・推奨)
-人間承認ゲートを Terraform で強制する場合:
+人間承認ゲートは**別モジュール** `infra/github-branch-protection/` で適用する(GitHub プロバイダのみを使い、本体とは独立)。手順はそのディレクトリの `README.md` を参照。
 
-```powershell
-$env:TF_VAR_github_token = "ghp_repo_admin_token"   # repo admin 権限
-# terraform.tfvars で enable_github_branch_protection = true にして
-terraform apply
-```
-あわせて repo に `.github/CODEOWNERS` を置き、`.github/` と `infra/` を人間レビュー必須にする(コード側で別途追加)。
+> ブランチ保護を本体から分離している理由: `integrations/github` プロバイダは Terraform のバージョンによってスキーマ取得に失敗することがあり、本体の `plan`/`apply` を巻き込まないようにするため。
 
 ---
 
@@ -132,7 +127,7 @@ terraform destroy
 | `iam.tf` | 用途別 SA と最小権限バインディング |
 | `wif.tf` | GitHub Actions 用 Workload Identity 連携(リポジトリ・ブランチ限定) |
 | `cloudrun.tf` | app / agents サービス + サンドボックス Job |
-| `github.tf` | ブランチ保護(任意) |
+| `github-branch-protection/` | ブランチ保護(任意・別モジュール) |
 
 ## 注意
 

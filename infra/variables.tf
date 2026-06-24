@@ -45,19 +45,6 @@ variable "container_image" {
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
 
-variable "enable_github_branch_protection" {
-  type        = bool
-  description = "true なら GitHub のブランチ保護を Terraform で管理する(github_token が必要)。"
-  default     = false
-}
-
-variable "github_token" {
-  type        = string
-  description = "ブランチ保護管理用の GitHub トークン(repo admin 権限)。環境変数 TF_VAR_github_token で渡す。"
-  default     = ""
-  sensitive   = true
-}
-
 # restricted.googleapis.com の固定 VIP レンジ(サンドボックスの egress 制限に使用)。
 variable "restricted_apis_cidr" {
   type        = string
