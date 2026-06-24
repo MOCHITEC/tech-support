@@ -45,6 +45,12 @@ variable "container_image" {
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
 
+variable "allow_public_app" {
+  type        = bool
+  description = "予約アプリを allUsers で一般公開するか。組織ポリシーで公開禁止の場合は false。"
+  default     = false
+}
+
 # restricted.googleapis.com の固定 VIP レンジ(サンドボックスの egress 制限に使用)。
 variable "restricted_apis_cidr" {
   type        = string

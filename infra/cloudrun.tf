@@ -2,9 +2,10 @@
 
 # ============ 予約アプリ ============
 resource "google_cloud_run_v2_service" "app" {
-  name     = "${var.name_prefix}-app"
-  location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL"
+  name                = "${var.name_prefix}-app"
+  location            = var.region
+  ingress             = "INGRESS_TRAFFIC_ALL"
+  deletion_protection = false # ハッカソンの後片付けを容易にする
 
   template {
     service_account = google_service_account.app.email
@@ -69,14 +70,16 @@ resource "google_cloud_run_v2_service" "app" {
   }
 
   lifecycle {
-    ignore_changes = [template[0].containers[0].image, client, client_version]
+    ignore_changes = [template[0].containers[0].image, client, client_version, scaling]
   }
 
   depends_on = [google_project_service.enabled]
 }
 
-# 予約アプリは一般公開(エンドユーザがアクセスする)。
+# 予約アプリの一般公開(allUsers)。組織ポリシーで公開が禁止されている場合は
+# allow_public_app=false のままにし、公開は別途ポリシー対応で行う。
 resource "google_cloud_run_v2_service_iam_member" "app_public" {
+  count    = var.allow_public_app ? 1 : 0
   location = var.region
   name     = google_cloud_run_v2_service.app.name
   role     = "roles/run.invoker"
@@ -85,9 +88,10 @@ resource "google_cloud_run_v2_service_iam_member" "app_public" {
 
 # ============ エージェント オーケストレータ ============
 resource "google_cloud_run_v2_service" "agents" {
-  name     = "${var.name_prefix}-agents"
-  location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL" # Pub/Sub push は OIDC+run.invoker で限定
+  name                = "${var.name_prefix}-agents"
+  location            = var.region
+  ingress             = "INGRESS_TRAFFIC_ALL" # Pub/Sub push は OIDC+run.invoker で限定
+  deletion_protection = false
 
   template {
     service_account = google_service_account.agents.email
@@ -165,7 +169,7 @@ resource "google_cloud_run_v2_service" "agents" {
   }
 
   lifecycle {
-    ignore_changes = [template[0].containers[0].image, client, client_version]
+    ignore_changes = [template[0].containers[0].image, client, client_version, scaling]
   }
 
   depends_on = [google_project_service.enabled]
