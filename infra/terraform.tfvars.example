@@ -1,0 +1,15 @@
+# これを terraform.tfvars にコピーして値を埋める(terraform.tfvars は git 管理しない)。
+
+project_id = "your-gcp-project-id"
+region     = "asia-northeast1"
+
+github_repository     = "MOCHITEC/tech-support"
+github_default_branch = "main"
+
+# Cloud SQL(ハッカソンは最小構成)
+db_tier = "db-f1-micro"
+
+# GitHub ブランチ保護を Terraform で管理する場合のみ true にし、
+# repo admin 権限の GitHub トークンを環境変数で渡す:
+#   $env:TF_VAR_github_token = "ghp_xxx"   (PowerShell)
+enable_github_branch_protection = false
