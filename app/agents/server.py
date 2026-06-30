@@ -6,6 +6,7 @@
 """
 import base64
 import binascii
+import os
 from collections.abc import Callable
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -21,7 +22,13 @@ orchestrator = FastAPI(title="tech-support orchestrator")
 
 
 def get_llm() -> AgentLLM:
-    """既定の LLM。本物の Gemini クライアント実装後に差し替える。"""
+    """GEMINI_API_KEY があれば Gemini、なければローカル用 FakeLLM。"""
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if api_key:
+        from app.agents.gemini_llm import GeminiLLM
+
+        return GeminiLLM(api_key=api_key)
+
     from app.agents.fake_llm import FakeLLM
 
     return FakeLLM()
