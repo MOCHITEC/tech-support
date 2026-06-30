@@ -191,7 +191,8 @@ resource "google_cloud_run_v2_job" "sandbox" {
       timeout         = "600s"
 
       containers {
-        image = var.container_image
+        image   = var.container_image
+        command = ["python", "-m", "app.agents.sandbox_main"]
         env {
           name  = "SOURCE_BUNDLE_BUCKET"
           value = google_storage_bucket.source_bundle.name
