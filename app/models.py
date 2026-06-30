@@ -68,6 +68,25 @@ class Ticket(Base):
     )
 
 
+class InboxEvent(Base):
+    """Pub/Sub から受信したイベントの冪等受付台帳。
+
+    event_id(Pub/Sub message ID / GitHub delivery ID)を UNIQUE にし、
+    再配信を重複なく扱う。state は pending / processing(lease 付き)/ completed。
+    """
+
+    __tablename__ = "inbox_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
+    payload: Mapped[str] = mapped_column(String(8000), nullable=False, default="")
+    state: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    lease_expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: dt.datetime.now(dt.timezone.utc)
+    )
+
+
 class TicketHistory(Base):
     """チケットの状態遷移履歴(ステータスページのタイムライン)。"""
 
