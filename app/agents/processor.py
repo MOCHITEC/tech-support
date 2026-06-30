@@ -16,7 +16,7 @@ _DEFAULT_LEASE_SECONDS = 600
 
 
 def _now(now: dt.datetime | None) -> dt.datetime:
-    return now if now is not None else dt.datetime.utcnow()
+    return now if now is not None else dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
 
 
 def claim_event(
