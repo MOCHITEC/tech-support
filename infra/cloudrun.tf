@@ -99,6 +99,10 @@ resource "google_cloud_run_v2_service" "agents" {
     containers {
       image = var.container_image
 
+      # 共有イメージを agents として起動するためオーケストレータ ASGI を指定。
+      command = ["sh", "-c"]
+      args    = ["exec uvicorn app.agents.server:orchestrator --host 0.0.0.0 --port $PORT"]
+
       env {
         name  = "DB_USER"
         value = google_sql_user.app.name
