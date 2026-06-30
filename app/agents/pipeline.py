@@ -49,7 +49,30 @@ def run_pipeline(
             message="人間の確認が必要です。",
         )
 
-    # --- バグ: 再現 ---
+    return reproduce_and_fix(
+        ticket,
+        ticket_id=ticket_id,
+        llm=llm,
+        spec=spec,
+        workspace_root=workspace_root,
+        rationale=triage.rationale,
+        spec_citation=triage.spec_citation,
+        max_attempts=max_attempts,
+    )
+
+
+def reproduce_and_fix(
+    ticket: TicketInput,
+    *,
+    ticket_id: int,
+    llm: AgentLLM,
+    spec: str,
+    workspace_root: Path,
+    rationale: str = "",
+    spec_citation: str = "",
+    max_attempts: int = _MAX_ATTEMPTS,
+) -> PipelineResult:
+    """バグの再現テスト生成→実行→修正の自己ループ。トリアージ済みを前提とする。"""
     test = llm.generate_repro_test(ticket, spec, ticket_id)
     validate_write_paths([test.filename])
 
@@ -63,13 +86,12 @@ def run_pipeline(
             kind="bug",
             reproduced=False,
             generated_test=test,
-            rationale=triage.rationale,
-            spec_citation=triage.spec_citation,
+            rationale=rationale,
+            spec_citation=spec_citation,
             escalated=True,
             message="報告内容を再現できませんでした。追加情報が必要です。",
         )
 
-    # --- バグ: 修正の自己ループ ---
     prior_error: str | None = repro_output
     for attempt in range(1, max_attempts + 1):
         sources = {
@@ -88,8 +110,8 @@ def run_pipeline(
                 attempts=attempt,
                 generated_test=test,
                 patch=patch,
-                rationale=triage.rationale,
-                spec_citation=triage.spec_citation,
+                rationale=rationale,
+                spec_citation=spec_citation,
                 message="再現テストを修正で解消しました。レビュー待ちです。",
             )
         prior_error = output
@@ -100,8 +122,8 @@ def run_pipeline(
         fixed=False,
         attempts=max_attempts,
         generated_test=test,
-        rationale=triage.rationale,
-        spec_citation=triage.spec_citation,
+        rationale=rationale,
+        spec_citation=spec_citation,
         escalated=True,
         message="上限内で修正できませんでした。人間へエスカレーションします。",
     )
