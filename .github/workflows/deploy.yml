@@ -1,0 +1,48 @@
+# GitHub Actions から Workload Identity 連携(長期キーなし)で Cloud Run にデプロイする。
+# WIF の信頼条件: リポジトリ MOCHITEC/tech-support かつ refs/heads/main のみ(infra/wif.tf)。
+name: deploy
+
+on:
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ace-ripsaw-498301-f5
+  REGION: asia-northeast1
+  IMAGE: asia-northeast1-docker.pkg.dev/ace-ripsaw-498301-f5/tech-support-containers/app
+
+# WIF の OIDC トークン取得に必要。
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/1022707105881/locations/global/workloadIdentityPools/tech-support-gh-pool/providers/tech-support-gh-provider
+          service_account: tech-support-deployer@ace-ripsaw-498301-f5.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        run: |
+          docker build -t "${IMAGE}:${GITHUB_SHA}" -t "${IMAGE}:latest" .
+          docker push "${IMAGE}:${GITHUB_SHA}"
+          docker push "${IMAGE}:latest"
+
+      - name: Deploy app service
+        run: gcloud run deploy tech-support-app --image "${IMAGE}:${GITHUB_SHA}" --region "${REGION}" --quiet
+
+      - name: Deploy agents service
+        run: gcloud run deploy tech-support-agents --image "${IMAGE}:${GITHUB_SHA}" --region "${REGION}" --quiet
+
+      - name: Update sandbox job image
+        run: gcloud run jobs update tech-support-sandbox --image "${IMAGE}:${GITHUB_SHA}" --region "${REGION}" --quiet
