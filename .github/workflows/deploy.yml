@@ -38,6 +38,11 @@ jobs:
           docker push "${IMAGE}:${GITHUB_SHA}"
           docker push "${IMAGE}:latest"
 
+      - name: Run database migrations (fail-fast before deploy)
+        run: |
+          gcloud run jobs update tech-support-migrate --image "${IMAGE}:${GITHUB_SHA}" --region "${REGION}" --quiet
+          gcloud run jobs execute tech-support-migrate --region "${REGION}" --wait
+
       - name: Deploy app service
         run: gcloud run deploy tech-support-app --image "${IMAGE}:${GITHUB_SHA}" --region "${REGION}" --quiet
 

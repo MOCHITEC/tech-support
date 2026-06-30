@@ -218,3 +218,64 @@ resource "google_cloud_run_v2_job" "sandbox" {
 
   depends_on = [google_project_service.enabled]
 }
+
+# ============ マイグレーション(Cloud Run Job) ============
+# デプロイのトラフィック切替前に CI が一度だけ実行する(PLAN §5)。agents SA を
+# 再利用(cloudsql.client + db_password の secretAccessor を既に保有)。
+resource "google_cloud_run_v2_job" "migrate" {
+  name                = "${var.name_prefix}-migrate"
+  location            = var.region
+  deletion_protection = false
+
+  template {
+    template {
+      service_account = google_service_account.agents.email
+      max_retries     = 0
+      timeout         = "600s"
+
+      containers {
+        image   = var.container_image
+        command = ["alembic", "upgrade", "head"]
+
+        env {
+          name  = "DB_USER"
+          value = google_sql_user.app.name
+        }
+        env {
+          name  = "DB_NAME"
+          value = google_sql_database.app.name
+        }
+        env {
+          name  = "INSTANCE_CONNECTION_NAME"
+          value = google_sql_database_instance.main.connection_name
+        }
+        env {
+          name = "DB_PASSWORD"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.db_password.secret_id
+              version = "latest"
+            }
+          }
+        }
+        volume_mounts {
+          name       = "cloudsql"
+          mount_path = "/cloudsql"
+        }
+      }
+
+      volumes {
+        name = "cloudsql"
+        cloud_sql_instance {
+          instances = [google_sql_database_instance.main.connection_name]
+        }
+      }
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [template[0].template[0].containers[0].image, client, client_version]
+  }
+
+  depends_on = [google_project_service.enabled]
+}
