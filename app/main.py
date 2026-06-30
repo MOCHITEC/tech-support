@@ -13,6 +13,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app import screenshots, security, tickets
 from app.auth import get_current_user
 from app.db import get_db
+from app.events import Publisher, default_publisher
 from app.gitref import current_commit_sha
 from app.models import Reservation, Room, User
 from app.pricing import calculate_price
@@ -26,6 +27,16 @@ app.add_middleware(
     SessionMiddleware, secret_key=os.environ.get("SESSION_SECRET", "dev-secret-change-me")
 )
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+_publisher: Publisher | None = None
+
+
+def get_publisher() -> Publisher:
+    """イベント発行 publisher を返す(env から一度だけ決定)。"""
+    global _publisher
+    if _publisher is None:
+        _publisher = default_publisher()
+    return _publisher
 
 
 @app.get("/")
@@ -130,6 +141,7 @@ async def post_feedback(
     screenshot: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    publisher: Publisher = Depends(get_publisher),
 ):
     try:
         security.verify_csrf(request, csrf_token)
@@ -174,7 +186,7 @@ async def post_feedback(
         (SCREENSHOT_DIR / fname).write_bytes(clean_png)
         screenshot_path = fname
 
-    tickets.create_ticket(
+    ticket = tickets.create_ticket(
         db,
         user_id=user.id,
         title=title,
@@ -184,6 +196,7 @@ async def post_feedback(
         screenshot_path=screenshot_path,
         base_commit_sha=current_commit_sha(),
     )
+    publisher.publish_ticket_created(ticket.id)
     return RedirectResponse("/tickets", status_code=303)
 
 
