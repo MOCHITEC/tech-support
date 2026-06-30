@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.agents.inbox import record_event
 from app.agents.llm import AgentLLM
 from app.agents.processor import process_event
-from app.agents.triage import triage_handler
+from app.agents.runtime import build_event_handler
 from app.db import get_db
 
 orchestrator = FastAPI(title="tech-support orchestrator")
@@ -37,8 +37,10 @@ def get_llm() -> AgentLLM:
 def get_event_processor(
     db: Session = Depends(get_db), llm: AgentLLM = Depends(get_llm)
 ) -> Callable[[str], None]:
+    handler = build_event_handler(db, llm)
+
     def process(event_id: str) -> None:
-        process_event(db, event_id=event_id, handler=triage_handler(db, llm))
+        process_event(db, event_id=event_id, handler=handler)
 
     return process
 

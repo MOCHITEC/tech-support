@@ -4,6 +4,7 @@ REPRODUCING のチケットに対し、再現/修正の結果(PipelineResult)を
 許可遷移へ写像する。実際の再現テスト生成・実行・修正ループは pipeline の
 reproduce_and_fix が担う。
 """
+from collections.abc import Callable
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -11,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.agents.llm import AgentLLM
 from app.agents.pipeline import reproduce_and_fix
 from app.agents.schemas import PipelineResult, TicketInput
+from app.agents.triage import run_triage
 from app.models import Ticket
 from app.state_machine import TicketState
 from app.tickets import transition_ticket
@@ -53,3 +55,27 @@ def run_reproduce_fix(
     )
     apply_pipeline_result(db, ticket, result)
     return result
+
+
+def run_full_pipeline_for_ticket(
+    db: Session,
+    ticket: Ticket,
+    *,
+    llm: AgentLLM,
+    reproduce_fix: Callable[[Ticket], PipelineResult],
+    pr_creator: Callable[[Ticket, PipelineResult], str],
+    spec_path: Path | None = None,
+) -> None:
+    """1 イベントで triage→(bug)再現/修正→(fixed)PR を通す single-pass 処理。
+
+    再現/修正(sandbox 実行を含む)と PR 作成は注入 seam。非バグは triage が
+    終端状態へ遷移させて終了する。
+    """
+    triage = run_triage(db, ticket=ticket, llm=llm, spec_path=spec_path)
+    if triage.kind != "bug":
+        return
+
+    result = reproduce_fix(ticket)
+    apply_pipeline_result(db, ticket, result)
+    if result.fixed:
+        pr_creator(ticket, result)

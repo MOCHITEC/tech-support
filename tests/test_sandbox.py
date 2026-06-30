@@ -56,12 +56,7 @@ class FakeExecutor:
 
 
 def _runner(store, executor):
-    return SandboxRunner(
-        bucket="bundle-bucket",
-        store=store,
-        executor=executor,
-        source_files=lambda: {},  # 自己完結テストなので app ソース不要
-    )
+    return SandboxRunner(bucket="bundle-bucket", store=store, executor=executor)
 
 
 def test_passing_test_reports_success(tmp_path):
@@ -69,7 +64,8 @@ def test_passing_test_reports_success(tmp_path):
     runner = _runner(store, FakeExecutor(store, tmp_path))
 
     passed, output = runner.run(
-        test_filename="tests/test_x.py", test_code="def test_ok():\n    assert True\n"
+        files={"tests/test_x.py": "def test_ok():\n    assert True\n"},
+        target="tests/test_x.py",
     )
     assert passed is True
 
@@ -79,7 +75,8 @@ def test_failing_test_reports_failure(tmp_path):
     runner = _runner(store, FakeExecutor(store, tmp_path))
 
     passed, output = runner.run(
-        test_filename="tests/test_x.py", test_code="def test_no():\n    assert False\n"
+        files={"tests/test_x.py": "def test_no():\n    assert False\n"},
+        target="tests/test_x.py",
     )
     assert passed is False
     assert "assert" in output.lower() or "fail" in output.lower()
@@ -90,8 +87,9 @@ def test_each_run_uses_a_unique_prefix(tmp_path):
     executor = FakeExecutor(store, tmp_path)
     runner = _runner(store, executor)
 
-    runner.run(test_filename="tests/test_x.py", test_code="def test_ok():\n    assert True\n")
-    runner.run(test_filename="tests/test_x.py", test_code="def test_ok():\n    assert True\n")
+    files = {"tests/test_x.py": "def test_ok():\n    assert True\n"}
+    runner.run(files=files, target="tests/test_x.py")
+    runner.run(files=files, target="tests/test_x.py")
 
     prefixes = {e["BUNDLE_PREFIX"] for e in executor.calls}
     assert len(prefixes) == 2

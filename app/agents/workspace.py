@@ -40,19 +40,21 @@ class Workspace:
         self.root = root
 
     @classmethod
-    def materialize(cls, dest: Path) -> "Workspace":
+    def materialize(cls, dest: Path, source_root: Path | None = None) -> "Workspace":
+        """source_root(既定はリポジトリルート、本番はクローン)から最小構成を複製する。"""
+        root = source_root or _REPO_ROOT
         dest.mkdir(parents=True, exist_ok=True)
         for name in _MATERIALIZE_DIRS:
-            src = _REPO_ROOT / name
+            src = root / name
             if src.exists():
                 shutil.copytree(src, dest / name, dirs_exist_ok=True)
         # テストは conftest(フィクスチャ)のみ複製し、生成テストを書き込む土台にする。
         (dest / "tests").mkdir(exist_ok=True)
         (dest / "tests" / "__init__.py").touch()
-        if (_REPO_ROOT / "tests" / "conftest.py").exists():
-            shutil.copy2(_REPO_ROOT / "tests" / "conftest.py", dest / "tests" / "conftest.py")
-        if (_REPO_ROOT / "pytest.ini").exists():
-            shutil.copy2(_REPO_ROOT / "pytest.ini", dest / "pytest.ini")
+        if (root / "tests" / "conftest.py").exists():
+            shutil.copy2(root / "tests" / "conftest.py", dest / "tests" / "conftest.py")
+        if (root / "pytest.ini").exists():
+            shutil.copy2(root / "pytest.ini", dest / "pytest.ini")
         return cls(dest)
 
     def write_files(self, files: Mapping[str, str]) -> None:
@@ -65,6 +67,15 @@ class Workspace:
 
     def read(self, rel: str) -> str:
         return (self.root / rel).read_text(encoding="utf-8")
+
+    def snapshot(self) -> dict[str, str]:
+        """作業領域内の全テキストファイルを 相対パス→内容 で返す(bundle 用)。"""
+        files: dict[str, str] = {}
+        for path in self.root.rglob("*"):
+            if path.is_file() and "__pycache__" not in path.parts:
+                rel = path.relative_to(self.root).as_posix()
+                files[rel] = path.read_text(encoding="utf-8")
+        return files
 
     def run_tests(self, target: str | None = None) -> tuple[bool, str]:
         """pytest を作業領域で実行し (全て成功したか, 出力) を返す。"""

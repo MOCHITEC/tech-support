@@ -1,7 +1,9 @@
-"""push → record → process → triage のエンドツーエンド接続。
+"""push → record → process → full pipeline のエンドツーエンド接続。
 
-有効な ticket を指す push を受けると、その ticket がトリアージを通って遷移し、
-inbox イベントが completed になることを検証する(LLM は既定の FakeLLM)。
+本番の処理(クローン/sandbox/PR)はローカルで動かせないため、get_event_processor を
+差し替え、run_full_pipeline_for_ticket を FakeLLM + フェイク再現修正/PR で実行する。
+HTTP push が record→process→パイプラインを駆動し、チケットが AWAITING_REVIEW へ
+進み、inbox イベントが completed になることを検証する。
 """
 import base64
 import json
@@ -12,14 +14,18 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.agents.server import orchestrator
+from app.agents.fake_llm import FakeLLM
+from app.agents.fix_stage import run_full_pipeline_for_ticket
+from app.agents.processor import process_event
+from app.agents.schemas import PipelineResult
+from app.agents.server import get_event_processor, orchestrator
 from app.db import Base, get_db
 from app.models import InboxEvent, Ticket, User
 from app.state_machine import TicketState
 
 
 @pytest.fixture
-def env():
+def env(tmp_path):
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
@@ -33,7 +39,35 @@ def env():
         finally:
             session.close()
 
+    spec = tmp_path / "spec.md"
+    spec.write_text("dummy", encoding="utf-8")
+
+    def fake_processor():
+        def process(event_id: str) -> None:
+            session = Session()
+            try:
+                def handler(event: InboxEvent) -> None:
+                    ticket_id = json.loads(event.payload)["ticket_id"]
+                    ticket = session.get(Ticket, ticket_id)
+                    run_full_pipeline_for_ticket(
+                        session,
+                        ticket,
+                        llm=FakeLLM(),
+                        reproduce_fix=lambda t: PipelineResult(
+                            kind="bug", reproduced=True, fixed=True, message="ok"
+                        ),
+                        pr_creator=lambda t, r: "https://github.com/o/r/pull/1",
+                        spec_path=spec,
+                    )
+
+                process_event(session, event_id=event_id, handler=handler)
+            finally:
+                session.close()
+
+        return process
+
     orchestrator.dependency_overrides[get_db] = override_get_db
+    orchestrator.dependency_overrides[get_event_processor] = fake_processor
 
     seed = Session()
     user = User(name="デモ太郎")
@@ -66,7 +100,7 @@ def _envelope(event_id: str, payload: str) -> dict:
     }
 
 
-def test_push_drives_ticket_through_triage(env):
+def test_push_drives_ticket_through_full_pipeline(env):
     client, Session, ticket_id = env
     resp = client.post(
         "/pubsub/push", json=_envelope("evt-tri", json.dumps({"ticket_id": ticket_id}))
@@ -77,6 +111,5 @@ def test_push_drives_ticket_through_triage(env):
     ticket = session.get(Ticket, ticket_id)
     event = session.query(InboxEvent).filter_by(event_id="evt-tri").one()
     session.close()
-    # FakeLLM は二重予約報告を bug 判定 → REPRODUCING へ。
-    assert ticket.state == TicketState.REPRODUCING.name
+    assert ticket.state == TicketState.AWAITING_REVIEW.name
     assert event.state == "completed"

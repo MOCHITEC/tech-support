@@ -9,7 +9,6 @@ import json
 import subprocess
 import sys
 import uuid
-from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
@@ -28,29 +27,21 @@ class JobExecutor(Protocol):
 
 
 class SandboxRunner:
-    def __init__(
-        self,
-        *,
-        bucket: str,
-        store: BundleStore,
-        executor: JobExecutor,
-        source_files: Callable[[], dict[str, str]],
-    ):
+    def __init__(self, *, bucket: str, store: BundleStore, executor: JobExecutor):
         self.bucket = bucket
         self.store = store
         self.executor = executor
-        self.source_files = source_files
 
-    def run(self, *, test_filename: str, test_code: str) -> tuple[bool, str]:
+    def run(self, *, files: dict[str, str], target: str) -> tuple[bool, str]:
+        """与えられた全ファイルを bundle にして target を sandbox で実行する。"""
         prefix = f"runs/{uuid.uuid4().hex}"
-        files = {**self.source_files(), test_filename: test_code}
         self.store.put_tree(f"{prefix}/source", files)
 
         self.executor.execute(
             {
                 "BUNDLE_BUCKET": self.bucket,
                 "BUNDLE_PREFIX": prefix,
-                "TEST_TARGET": test_filename,
+                "TEST_TARGET": target,
             }
         )
 

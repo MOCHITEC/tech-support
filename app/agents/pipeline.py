@@ -6,11 +6,15 @@
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from app.agents.llm import AgentLLM
 from app.agents.schemas import PipelineResult, TicketInput
 from app.agents.workspace import Workspace, validate_write_paths
+
+# テスト実行 seam: (workspace, target) -> (全て成功したか, 出力)
+RunTests = Callable[[Workspace, str], tuple[bool, str]]
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _DEFAULT_SPEC = _REPO_ROOT / "docs" / "仕様書.md"
@@ -71,15 +75,22 @@ def reproduce_and_fix(
     rationale: str = "",
     spec_citation: str = "",
     max_attempts: int = _MAX_ATTEMPTS,
+    run_tests: "RunTests | None" = None,
+    source_root: Path | None = None,
 ) -> PipelineResult:
-    """バグの再現テスト生成→実行→修正の自己ループ。トリアージ済みを前提とする。"""
+    """バグの再現テスト生成→実行→修正の自己ループ。トリアージ済みを前提とする。
+
+    テスト実行は run_tests seam に委譲する(既定はローカル、本番は sandbox 経由)。
+    source_root は作業領域の複製元(既定はリポジトリルート、本番はクローン)。
+    """
+    run_tests = run_tests or (lambda ws, target: ws.run_tests(target))
     test = llm.generate_repro_test(ticket, spec, ticket_id)
     validate_write_paths([test.filename])
 
-    ws = Workspace.materialize(workspace_root)
+    ws = Workspace.materialize(workspace_root, source_root)
     ws.write_files({test.filename: test.code})
 
-    test_passes, repro_output = ws.run_tests(test.filename)
+    test_passes, repro_output = run_tests(ws, test.filename)
     if test_passes:
         # バグ向けテストが現状コードで通る = 再現できない。
         return PipelineResult(
@@ -101,7 +112,7 @@ def reproduce_and_fix(
         validate_write_paths(patch.files.keys())
         ws.write_files(patch.files)
 
-        passed, output = ws.run_tests(test.filename)
+        passed, output = run_tests(ws, test.filename)
         if passed:
             return PipelineResult(
                 kind="bug",

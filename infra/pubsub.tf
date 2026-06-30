@@ -14,7 +14,9 @@ resource "google_pubsub_subscription" "events_push" {
   name  = "${var.name_prefix}-events-push"
   topic = google_pubsub_topic.events.id
 
-  ack_deadline_seconds = 60
+  # single-pass 処理(クローン+sandbox+修正ループ)に合わせて最大化。
+  # 処理中の再配信は inbox lease が弾くため二重処理にはならない。
+  ack_deadline_seconds = 600
 
   push_config {
     push_endpoint = "${google_cloud_run_v2_service.agents.uri}/pubsub/push"
