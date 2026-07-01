@@ -1,0 +1,9 @@
+# ボット(生成コード)が触れてはならない領域は人間の承認を必須にする(PLAN §5)。
+# require_code_owner_reviews と組み合わせ、CI・インフラ・仕様・ビルド定義の変更を保護する。
+# 注: 実際のレビュアーは自組織のハンドル/チームに合わせて調整すること。
+/.github/          @EndoRai88
+/infra/            @EndoRai88
+/docs/             @EndoRai88
+/Dockerfile        @EndoRai88
+/alembic.ini       @EndoRai88
+/requirements.txt  @EndoRai88
