@@ -64,14 +64,18 @@ def run_full_pipeline_for_ticket(
     llm: AgentLLM,
     reproduce_fix: Callable[[Ticket], PipelineResult],
     pr_creator: Callable[[Ticket, PipelineResult], str],
+    issue_creator: Callable[[Ticket], str],
     spec_path: Path | None = None,
 ) -> None:
-    """1 イベントで triage→(bug)再現/修正→(fixed)PR を通す single-pass 処理。
+    """1 イベントで triage→分岐 を通す single-pass 処理。
 
-    再現/修正(sandbox 実行を含む)と PR 作成は注入 seam。非バグは triage が
-    終端状態へ遷移させて終了する。
+    bug は再現/修正→(fixed)PR、feature は要件定義 Issue 起票、その他は triage が
+    終端状態へ遷移させて終了。再現/修正・PR・Issue 起票は注入 seam。
     """
     triage = run_triage(db, ticket=ticket, llm=llm, spec_path=spec_path)
+    if triage.kind == "feature":
+        issue_creator(ticket)
+        return
     if triage.kind != "bug":
         return
 

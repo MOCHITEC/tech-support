@@ -57,6 +57,7 @@ def env(tmp_path):
                             kind="bug", reproduced=True, fixed=True, message="ok"
                         ),
                         pr_creator=lambda t, r: "https://github.com/o/r/pull/1",
+                        issue_creator=lambda t: "https://github.com/o/r/issues/1",
                         spec_path=spec,
                     )
 

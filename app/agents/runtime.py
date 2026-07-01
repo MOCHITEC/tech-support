@@ -13,6 +13,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from app.agents.feature import file_feature_issue
 from app.agents.fix_stage import run_full_pipeline_for_ticket, run_refix_for_ticket
 from app.agents.github_pr import GitHubClient, create_fix_pr
 from app.agents.llm import AgentLLM
@@ -70,6 +71,18 @@ def _create_pr(ticket: Ticket, result: PipelineResult) -> str:
     )
 
 
+def _file_issue(ticket: Ticket, llm: AgentLLM) -> str:
+    clone = _clone_repo(tempfile.mkdtemp())
+    spec = (clone / _SPEC_REL).read_text(encoding="utf-8")
+    doc = llm.draft_requirement(
+        TicketInput(
+            title=ticket.title, steps=ticket.steps, tobe=ticket.tobe, asis=ticket.asis
+        ),
+        spec,
+    )
+    return file_feature_issue(ticket, doc, github=GitHubClient())
+
+
 def build_event_handler(
     db: Session, llm: AgentLLM
 ) -> Callable[[InboxEvent], None]:
@@ -94,6 +107,7 @@ def build_event_handler(
                 llm=llm,
                 reproduce_fix=lambda t: _reproduce_fix(t, llm),
                 pr_creator=_create_pr,
+                issue_creator=lambda t: _file_issue(t, llm),
             )
 
     return handler

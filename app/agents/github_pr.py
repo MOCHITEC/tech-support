@@ -74,19 +74,23 @@ class GitHubClient:
         self._repository = repository or os.environ["GITHUB_REPOSITORY"]
         self._token = token or os.environ["GITHUB_TOKEN"]
 
-    def create_pull_request(self, *, head: str, base: str, title: str, body: str) -> str:
+    def _post(self, path: str, payload: dict) -> str:
         import httpx
 
         resp = httpx.post(
-            f"https://api.github.com/repos/{self._repository}/pulls",
+            f"https://api.github.com/repos/{self._repository}/{path}",
             headers={
                 "Authorization": f"Bearer {self._token}",
                 "Accept": "application/vnd.github+json",
             },
-            content=json.dumps(
-                {"head": head, "base": base, "title": title, "body": body}
-            ),
+            content=json.dumps(payload),
             timeout=30,
         )
         resp.raise_for_status()
         return resp.json()["html_url"]
+
+    def create_pull_request(self, *, head: str, base: str, title: str, body: str) -> str:
+        return self._post("pulls", {"head": head, "base": base, "title": title, "body": body})
+
+    def create_issue(self, *, title: str, body: str, labels: list[str]) -> str:
+        return self._post("issues", {"title": title, "body": body, "labels": labels})

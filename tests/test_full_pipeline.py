@@ -56,7 +56,7 @@ def ticket(db):
 
 
 def _run(db, ticket, *, kind, result=None, spec):
-    calls = {"reproduce_fix": 0, "pr": []}
+    calls = {"reproduce_fix": 0, "pr": [], "issue": []}
 
     def reproduce_fix(_ticket):
         calls["reproduce_fix"] += 1
@@ -66,18 +66,23 @@ def _run(db, ticket, *, kind, result=None, spec):
         calls["pr"].append(_ticket.id)
         return "https://github.com/o/r/pull/1"
 
+    def issue_creator(_ticket):
+        calls["issue"].append(_ticket.id)
+        return "https://github.com/o/r/issues/1"
+
     run_full_pipeline_for_ticket(
         db, ticket, llm=StubLLM(kind), reproduce_fix=reproduce_fix,
-        pr_creator=pr_creator, spec_path=spec,
+        pr_creator=pr_creator, issue_creator=issue_creator, spec_path=spec,
     )
     return calls
 
 
-def test_feature_stops_after_triage(db, ticket, spec):
+def test_feature_files_issue_and_stops(db, ticket, spec):
     calls = _run(db, ticket, kind="feature", spec=spec)
     assert ticket.state == TicketState.FEATURE_REQUEST.name
     assert calls["reproduce_fix"] == 0
     assert calls["pr"] == []
+    assert calls["issue"] == [ticket.id]
 
 
 def test_bug_fixed_reaches_review_and_opens_pr(db, ticket, spec):
