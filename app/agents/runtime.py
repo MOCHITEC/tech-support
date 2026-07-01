@@ -13,7 +13,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.agents.fix_stage import run_full_pipeline_for_ticket
+from app.agents.fix_stage import run_full_pipeline_for_ticket, run_refix_for_ticket
 from app.agents.github_pr import GitHubClient, create_fix_pr
 from app.agents.llm import AgentLLM
 from app.agents.pipeline import reproduce_and_fix
@@ -74,16 +74,26 @@ def build_event_handler(
     db: Session, llm: AgentLLM
 ) -> Callable[[InboxEvent], None]:
     def handler(event: InboxEvent) -> None:
-        ticket_id = json.loads(event.payload)["ticket_id"]
+        payload = json.loads(event.payload)
+        ticket_id = payload["ticket_id"]
         ticket = db.get(Ticket, ticket_id)
         if ticket is None:
             raise ValueError(f"ticket not found: {ticket_id}")
-        run_full_pipeline_for_ticket(
-            db,
-            ticket,
-            llm=llm,
-            reproduce_fix=lambda t: _reproduce_fix(t, llm),
-            pr_creator=_create_pr,
-        )
+
+        if payload.get("action") == "refix":
+            run_refix_for_ticket(
+                db,
+                ticket,
+                reproduce_fix=lambda t: _reproduce_fix(t, llm),
+                pr_creator=_create_pr,
+            )
+        else:
+            run_full_pipeline_for_ticket(
+                db,
+                ticket,
+                llm=llm,
+                reproduce_fix=lambda t: _reproduce_fix(t, llm),
+                pr_creator=_create_pr,
+            )
 
     return handler

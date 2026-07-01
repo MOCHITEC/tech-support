@@ -10,12 +10,16 @@ from typing import Protocol
 
 class Publisher(Protocol):
     def publish_ticket_created(self, ticket_id: int) -> None: ...
+    def publish_fix_requested(self, ticket_id: int) -> None: ...
 
 
 class NullPublisher:
     """発行を行わない(ローカル/テスト用の既定)。"""
 
     def publish_ticket_created(self, ticket_id: int) -> None:
+        pass
+
+    def publish_fix_requested(self, ticket_id: int) -> None:
         pass
 
 
@@ -28,9 +32,16 @@ class PubSubPublisher:
         self._client = pubsub_v1.PublisherClient()
         self._topic_path = self._client.topic_path(project_id, topic)
 
+    def _publish(self, payload: dict) -> None:
+        self._client.publish(
+            self._topic_path, data=json.dumps(payload).encode("utf-8")
+        ).result()
+
     def publish_ticket_created(self, ticket_id: int) -> None:
-        data = json.dumps({"ticket_id": ticket_id}).encode("utf-8")
-        self._client.publish(self._topic_path, data=data).result()
+        self._publish({"ticket_id": ticket_id})
+
+    def publish_fix_requested(self, ticket_id: int) -> None:
+        self._publish({"ticket_id": ticket_id, "action": "refix"})
 
 
 def default_publisher() -> Publisher:

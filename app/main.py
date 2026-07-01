@@ -13,6 +13,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app import screenshots, security, tickets
 from app.auth import get_current_user
+from app.agents.review import fix_request_ticket_id
 from app.agents.webhook import apply_pr_event, verify_signature
 from app.db import get_db
 from app.events import Publisher, default_publisher
@@ -42,8 +43,13 @@ def get_publisher() -> Publisher:
 
 
 @app.post("/webhook/github")
-async def github_webhook(request: Request, db: Session = Depends(get_db)) -> Response:
-    """GitHub webhook(HMAC 署名検証)。PR クローズをチケット状態へ同期する。
+async def github_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+    publisher: Publisher = Depends(get_publisher),
+) -> Response:
+    """GitHub webhook(HMAC 署名検証)。PR クローズをチケット状態へ同期し、
+    レビューでの `@agent fix` を検証のうえ再修正イベントとして発行する。
 
     公開アプリ側に置く(GitHub は IAM 認証できず、非公開の agents サービスには
     到達できないため)。認証は署名のみ。"""
@@ -55,7 +61,8 @@ async def github_webhook(request: Request, db: Session = Depends(get_db)) -> Res
     ):
         raise HTTPException(status_code=401, detail="invalid signature")
 
-    if request.headers.get("X-GitHub-Event") == "pull_request":
+    event = request.headers.get("X-GitHub-Event")
+    if event == "pull_request":
         payload = json.loads(body)
         pr = payload.get("pull_request", {})
         apply_pr_event(
@@ -64,6 +71,10 @@ async def github_webhook(request: Request, db: Session = Depends(get_db)) -> Res
             merged=bool(pr.get("merged")),
             head_ref=pr.get("head", {}).get("ref", ""),
         )
+    elif event == "issue_comment":
+        ticket_id = fix_request_ticket_id(json.loads(body))
+        if ticket_id is not None:
+            publisher.publish_fix_requested(ticket_id)
     return Response(status_code=204)
 
 

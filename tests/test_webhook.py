@@ -149,3 +149,32 @@ def test_webhook_endpoint_rejects_bad_signature(client):
         headers={"X-GitHub-Event": "pull_request", "X-Hub-Signature-256": "sha256=bad"},
     )
     assert resp.status_code == 401
+
+
+def test_webhook_endpoint_publishes_on_agent_fix(client):
+    from app.main import app, get_publisher
+
+    published: list[int] = []
+
+    class FakePublisher:
+        def publish_ticket_created(self, ticket_id):
+            pass
+
+        def publish_fix_requested(self, ticket_id):
+            published.append(ticket_id)
+
+    app.dependency_overrides[get_publisher] = lambda: FakePublisher()
+
+    payload = {
+        "action": "created",
+        "issue": {"title": "fix: 二重予約 (ticket #42)", "pull_request": {"url": "u"}},
+        "comment": {"body": "@agent fix", "author_association": "MEMBER"},
+    }
+    body = json.dumps(payload).encode()
+    resp = client.post(
+        "/webhook/github",
+        content=body,
+        headers={"X-GitHub-Event": "issue_comment", "X-Hub-Signature-256": _sign(body)},
+    )
+    assert resp.status_code == 204
+    assert published == [42]

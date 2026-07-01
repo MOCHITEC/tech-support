@@ -14,7 +14,7 @@ from app.agents.pipeline import reproduce_and_fix
 from app.agents.schemas import PipelineResult, TicketInput
 from app.agents.triage import run_triage
 from app.models import Ticket
-from app.state_machine import TicketState
+from app.state_machine import TicketState, can_transition
 from app.tickets import transition_ticket
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -79,3 +79,22 @@ def run_full_pipeline_for_ticket(
     apply_pipeline_result(db, ticket, result)
     if result.fixed:
         pr_creator(ticket, result)
+
+
+def run_refix_for_ticket(
+    db: Session,
+    ticket: Ticket,
+    *,
+    reproduce_fix: Callable[[Ticket], PipelineResult],
+    pr_creator: Callable[[Ticket, PipelineResult], str],
+) -> None:
+    """@agent fix による再修正。FIXING に遷移できる状態のときのみ再実行する。"""
+    if not can_transition(TicketState[ticket.state], TicketState.FIXING):
+        return
+    transition_ticket(db, ticket, TicketState.FIXING, note="@agent fix により再修正します")
+    result = reproduce_fix(ticket)
+    if result.fixed:
+        transition_ticket(db, ticket, TicketState.AWAITING_REVIEW, note=result.message)
+        pr_creator(ticket, result)
+    else:
+        transition_ticket(db, ticket, TicketState.ESCALATED, note=result.message)
