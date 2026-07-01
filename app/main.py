@@ -1,10 +1,11 @@
 """会議室予約システム(FastAPI)。"""
 import datetime as dt
+import json
 import os
 import uuid
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -12,6 +13,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app import screenshots, security, tickets
 from app.auth import get_current_user
+from app.agents.webhook import apply_pr_event, verify_signature
 from app.db import get_db
 from app.events import Publisher, default_publisher
 from app.gitref import current_commit_sha
@@ -37,6 +39,32 @@ def get_publisher() -> Publisher:
     if _publisher is None:
         _publisher = default_publisher()
     return _publisher
+
+
+@app.post("/webhook/github")
+async def github_webhook(request: Request, db: Session = Depends(get_db)) -> Response:
+    """GitHub webhook(HMAC 署名検証)。PR クローズをチケット状態へ同期する。
+
+    公開アプリ側に置く(GitHub は IAM 認証できず、非公開の agents サービスには
+    到達できないため)。認証は署名のみ。"""
+    body = await request.body()
+    if not verify_signature(
+        os.environ.get("GITHUB_WEBHOOK_SECRET", ""),
+        body,
+        request.headers.get("X-Hub-Signature-256", ""),
+    ):
+        raise HTTPException(status_code=401, detail="invalid signature")
+
+    if request.headers.get("X-GitHub-Event") == "pull_request":
+        payload = json.loads(body)
+        pr = payload.get("pull_request", {})
+        apply_pr_event(
+            db,
+            action=payload.get("action", ""),
+            merged=bool(pr.get("merged")),
+            head_ref=pr.get("head", {}).get("ref", ""),
+        )
+    return Response(status_code=204)
 
 
 @app.get("/")

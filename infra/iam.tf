@@ -45,6 +45,12 @@ resource "google_secret_manager_secret_iam_member" "app_session" {
   member    = "serviceAccount:${google_service_account.app.email}"
 }
 
+resource "google_secret_manager_secret_iam_member" "app_webhook_secret" {
+  secret_id = google_secret_manager_secret.github_webhook_secret.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.app.email}"
+}
+
 resource "google_pubsub_topic_iam_member" "app_publish" {
   topic  = google_pubsub_topic.events.id
   role   = "roles/pubsub.publisher"
