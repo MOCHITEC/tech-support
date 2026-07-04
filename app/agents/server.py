@@ -22,7 +22,16 @@ orchestrator = FastAPI(title="tech-support orchestrator")
 
 
 def get_llm() -> AgentLLM:
-    """GEMINI_API_KEY があれば Gemini、なければローカル用 FakeLLM。"""
+    """Vertex AI(GCP クレジット)> API キー > ローカル FakeLLM の順で選ぶ。"""
+    if os.environ.get("GEMINI_USE_VERTEX", "").lower() == "true":
+        from app.agents.gemini_llm import GeminiLLM
+
+        return GeminiLLM(
+            use_vertex=True,
+            project=os.environ.get("GOOGLE_CLOUD_PROJECT"),
+            location=os.environ.get("GEMINI_LOCATION", "us-central1"),
+        )
+
     api_key = os.environ.get("GEMINI_API_KEY")
     if api_key:
         from app.agents.gemini_llm import GeminiLLM

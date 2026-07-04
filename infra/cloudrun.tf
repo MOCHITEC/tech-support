@@ -136,6 +136,24 @@ resource "google_cloud_run_v2_service" "agents" {
         name  = "EVENTS_TOPIC"
         value = google_pubsub_topic.events.name
       }
+      # sandbox Job 起動(run_v2)と Vertex 呼び出しに必要。
+      env {
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = var.project_id
+      }
+      env {
+        name  = "REGION"
+        value = var.region
+      }
+      # Gemini は Vertex AI 経由(ADC 認証・GCP クレジットで課金)。
+      env {
+        name  = "GEMINI_USE_VERTEX"
+        value = "true"
+      }
+      env {
+        name  = "GEMINI_LOCATION"
+        value = "us-central1"
+      }
       env {
         name = "DB_PASSWORD"
         value_source {

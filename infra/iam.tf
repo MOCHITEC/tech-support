@@ -71,6 +71,13 @@ resource "google_project_iam_member" "agents_sql" {
   member  = "serviceAccount:${google_service_account.agents.email}"
 }
 
+# Vertex AI 経由で Gemini を呼ぶための権限(GCP クレジットで課金)。
+resource "google_project_iam_member" "agents_aiplatform" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.agents.email}"
+}
+
 resource "google_secret_manager_secret_iam_member" "agents_secrets" {
   for_each = {
     db     = google_secret_manager_secret.db_password.id

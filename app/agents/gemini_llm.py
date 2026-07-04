@@ -30,6 +30,9 @@ class GeminiLLM:
         api_key: str | None = None,
         model: str = _DEFAULT_MODEL,
         *,
+        use_vertex: bool = False,
+        project: str | None = None,
+        location: str | None = None,
         json_generate: Callable[[str, type[BaseModel]], str] | None = None,
         text_generate: Callable[[str], str] | None = None,
     ):
@@ -40,7 +43,13 @@ class GeminiLLM:
             from google import genai
             from google.genai import types
 
-            client = genai.Client(api_key=sanitize_secret(api_key or ""))
+            if use_vertex:
+                # Vertex AI 経由(ADC 認証・API キー不要・GCP クレジットで課金)。
+                client = genai.Client(
+                    vertexai=True, project=project, location=location
+                )
+            else:
+                client = genai.Client(api_key=sanitize_secret(api_key or ""))
 
             def _json(prompt: str, schema: type[BaseModel]) -> str:
                 return client.models.generate_content(
