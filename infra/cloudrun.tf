@@ -244,8 +244,9 @@ resource "google_cloud_run_v2_job" "migrate" {
       timeout         = "600s"
 
       containers {
-        image   = var.container_image
-        command = ["alembic", "upgrade", "head"]
+        image = var.container_image
+        # マイグレーション後にデモ用の会議室を投入(app.seed は冪等)。
+        command = ["sh", "-c", "alembic upgrade head && python -m app.seed"]
 
         env {
           name  = "DB_USER"
