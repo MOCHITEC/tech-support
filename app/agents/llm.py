@@ -14,7 +14,12 @@ class AgentLLM(Protocol):
     def triage(self, ticket: TicketInput, spec: str) -> TriageResult: ...
 
     def generate_repro_test(
-        self, ticket: TicketInput, spec: str, ticket_id: int
+        self,
+        ticket: TicketInput,
+        spec: str,
+        ticket_id: int,
+        sources: dict[str, str] | None = None,
+        fixtures: str = "",
     ) -> GeneratedTest: ...
 
     def propose_fix(

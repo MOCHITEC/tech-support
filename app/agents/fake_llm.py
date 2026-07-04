@@ -46,7 +46,12 @@ class FakeLLM:
         )
 
     def generate_repro_test(
-        self, ticket: TicketInput, spec: str, ticket_id: int
+        self,
+        ticket: TicketInput,
+        spec: str,
+        ticket_id: int,
+        sources: dict[str, str] | None = None,
+        fixtures: str = "",
     ) -> GeneratedTest:
         code = (
             "import datetime as dt\n\n"

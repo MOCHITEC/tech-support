@@ -82,6 +82,12 @@ class Workspace:
         args = [sys.executable, "-m", "pytest", "-q"]
         args.append(target if target else "tests")
         proc = subprocess.run(
-            args, cwd=self.root, capture_output=True, text=True, timeout=120
+            args,
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
         )
         return proc.returncode == 0, proc.stdout + proc.stderr

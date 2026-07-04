@@ -84,7 +84,19 @@ def reproduce_and_fix(
     source_root は作業領域の複製元(既定はリポジトリルート、本番はクローン)。
     """
     run_tests = run_tests or (lambda ws, target: ws.run_tests(target))
-    test = llm.generate_repro_test(ticket, spec, ticket_id)
+    # 再現テスト生成に実コードと conftest フィクスチャを渡し、実 API を import した
+    # テストを書かせる(独自アプリを捏造すると修正しても通らないため)。
+    src_root = source_root or _REPO_ROOT
+    repro_sources = {
+        rel: (src_root / rel).read_text(encoding="utf-8")
+        for rel in _EDITABLE_SOURCES
+        if (src_root / rel).exists()
+    }
+    conftest = src_root / "tests" / "conftest.py"
+    fixtures = conftest.read_text(encoding="utf-8") if conftest.exists() else ""
+    test = llm.generate_repro_test(
+        ticket, spec, ticket_id, sources=repro_sources, fixtures=fixtures
+    )
     validate_write_paths([test.filename])
 
     ws = Workspace.materialize(workspace_root, source_root)

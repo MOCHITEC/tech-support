@@ -58,6 +58,8 @@ class GeminiLLM:
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
                         response_schema=schema,
+                        # 判定/生成/修正は再現性を優先し決定論的にする。
+                        temperature=0.0,
                     ),
                 ).text
 
@@ -79,13 +81,33 @@ class GeminiLLM:
         return TriageResult.model_validate_json(self._json_generate(prompt, TriageResult))
 
     def generate_repro_test(
-        self, ticket: TicketInput, spec: str, ticket_id: int
+        self,
+        ticket: TicketInput,
+        spec: str,
+        ticket_id: int,
+        sources: dict[str, str] | None = None,
+        fixtures: str = "",
     ) -> GeneratedTest:
+        source_block = "\n".join(
+            f"## {path}\n{content}" for path, content in (sources or {}).items()
+        )
         prompt = (
-            "報告を再現する、現状コードで失敗する pytest を1つ生成してください。"
-            "assertion は仕様書から導出し、FastAPI TestClient を用います。"
+            "報告を再現する pytest を1つ生成してください。\n"
+            "【最重要】テストは『期待される正しい挙動(報告の TOBE / 仕様書)』を assert して"
+            "ください。つまり現状のバグのあるコードでは失敗し、修正後に成功するテストにします。"
+            "現状のバグのある挙動を assert してはいけません(それでは修正すると失敗になります)。\n"
+            "【重要】実アプリのコードを import してテストしてください"
+            "(例: from app.services import create_reservation)。独自の FastAPI アプリや"
+            "モデルを定義してはいけません(定義するとテストが実コードを検証せず、"
+            "修正しても永遠に失敗します)。\n"
+            "テストは提供された conftest フィクスチャ(db, room, user, now)を引数に取り、"
+            "サービス/関数層を直接呼び出す形を優先してください。\n"
+            "例外を検証する場合は pytest.raises で例外の型のみを検証し、match= による"
+            "メッセージ文字列の厳密一致は要求しないでください(修正側のメッセージに依存しないため)。\n"
             f"ファイル名は tests/test_repro_ticket_{ticket_id}.py としてください。\n\n"
-            f"# 仕様書\n{spec}\n\n# 報告\n{_ticket_block(ticket)}"
+            f"# 仕様書\n{spec}\n\n# 報告\n{_ticket_block(ticket)}\n\n"
+            f"# 利用可能なフィクスチャ (tests/conftest.py)\n{fixtures}\n\n"
+            f"# 対象アプリのソース(この API を import して使う)\n{source_block}\n"
         )
         return GeneratedTest.model_validate_json(
             self._json_generate(prompt, GeneratedTest)
