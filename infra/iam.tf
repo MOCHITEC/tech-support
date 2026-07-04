@@ -107,11 +107,12 @@ resource "google_storage_bucket_iam_member" "agents_screenshots_ro" {
   member = "serviceAccount:${google_service_account.agents.email}"
 }
 
-# サンドボックス Job を実行する権限(Job 単位に限定)。
+# サンドボックス Job を env override 付きで実行する権限(Job 単位に限定)。
+# run.jobs.runWithOverrides + executions.get が必要なため developer を付与。
 resource "google_cloud_run_v2_job_iam_member" "agents_run_sandbox" {
   location = var.region
   name     = google_cloud_run_v2_job.sandbox.name
-  role     = "roles/run.invoker"
+  role     = "roles/run.developer"
   member   = "serviceAccount:${google_service_account.agents.email}"
 }
 
