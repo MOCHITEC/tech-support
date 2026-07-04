@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from app.agents.config import sanitize_secret
 from app.agents.schemas import CodePatch, GeneratedTest, TicketInput, TriageResult
 
-_DEFAULT_MODEL = "gemini-2.0-flash"
+_DEFAULT_MODEL = "gemini-2.5-flash"
 
 
 def _ticket_block(ticket: TicketInput) -> str:

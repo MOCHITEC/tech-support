@@ -152,7 +152,11 @@ resource "google_cloud_run_v2_service" "agents" {
       }
       env {
         name  = "GEMINI_LOCATION"
-        value = "us-central1"
+        value = var.region
+      }
+      env {
+        name  = "GEMINI_MODEL"
+        value = "gemini-2.5-flash"
       }
       env {
         name = "DB_PASSWORD"

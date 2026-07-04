@@ -30,6 +30,7 @@ def get_llm() -> AgentLLM:
             use_vertex=True,
             project=os.environ.get("GOOGLE_CLOUD_PROJECT"),
             location=os.environ.get("GEMINI_LOCATION", "us-central1"),
+            model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
         )
 
     api_key = os.environ.get("GEMINI_API_KEY")
