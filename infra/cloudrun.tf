@@ -158,6 +158,11 @@ resource "google_cloud_run_v2_service" "agents" {
         name  = "GEMINI_MODEL"
         value = "gemini-2.5-flash"
       }
+      # clone / PR 作成に必要(GitHubClient / _clone_repo が参照)。
+      env {
+        name  = "GITHUB_REPOSITORY"
+        value = var.github_repository
+      }
       env {
         name = "DB_PASSWORD"
         value_source {
