@@ -112,6 +112,13 @@ resource "google_cloud_run_v2_service" "agents" {
       command = ["sh", "-c"]
       args    = ["exec uvicorn app.agents.server:orchestrator --host 0.0.0.0 --port $PORT"]
 
+      # push 応答後にバックグラウンドで走る段階処理のため CPU を常時割り当てる
+      # (cpu_idle=false)。min_instances=1 と併せてインスタンスを維持し、
+      # 数分かかる sandbox/修正ループが完走できるようにする。
+      resources {
+        cpu_idle = false
+      }
+
       env {
         name  = "DB_USER"
         value = google_sql_user.app.name
@@ -203,13 +210,16 @@ resource "google_cloud_run_v2_service" "agents" {
       }
     }
 
+    # min=1 で常時 1 インスタンスを維持し、バックグラウンド処理中に
+    # 落とされないようにする。scaling は tf で管理するため ignore しない。
     scaling {
+      min_instance_count = 1
       max_instance_count = 2
     }
   }
 
   lifecycle {
-    ignore_changes = [template[0].containers[0].image, client, client_version, scaling]
+    ignore_changes = [template[0].containers[0].image, client, client_version]
   }
 
   depends_on = [google_project_service.enabled]

@@ -25,6 +25,41 @@ resource "google_vpc_access_connector" "connector" {
   depends_on    = [google_project_service.enabled]
 }
 
+# Private DNS: *.googleapis.com を restricted VIP に解決させる。これが無いと
+# サンドボックスは storage.googleapis.com をパブリック IP に解決し、deny_all で遮断される。
+resource "google_dns_managed_zone" "googleapis" {
+  name        = "${var.name_prefix}-googleapis"
+  dns_name    = "googleapis.com."
+  description = "restricted.googleapis.com VIP への Private Google Access 用"
+  visibility  = "private"
+
+  private_visibility_config {
+    networks {
+      network_url = google_compute_network.vpc.id
+    }
+  }
+
+  depends_on = [google_project_service.enabled]
+}
+
+# restricted.googleapis.com → VIP(199.36.153.4/30 の 4 アドレス)。
+resource "google_dns_record_set" "restricted_a" {
+  name         = "restricted.googleapis.com."
+  managed_zone = google_dns_managed_zone.googleapis.name
+  type         = "A"
+  ttl          = 300
+  rrdatas      = ["199.36.153.4", "199.36.153.5", "199.36.153.6", "199.36.153.7"]
+}
+
+# それ以外の *.googleapis.com は restricted.googleapis.com に集約。
+resource "google_dns_record_set" "wildcard_cname" {
+  name         = "*.googleapis.com."
+  managed_zone = google_dns_managed_zone.googleapis.name
+  type         = "CNAME"
+  ttl          = 300
+  rrdatas      = ["restricted.googleapis.com."]
+}
+
 # restricted.googleapis.com への経路(デフォルトゲートウェイ経由の固定 VIP)。
 resource "google_compute_route" "restricted_apis" {
   name             = "${var.name_prefix}-restricted-apis"

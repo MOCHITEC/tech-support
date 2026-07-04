@@ -116,6 +116,15 @@ resource "google_cloud_run_v2_job_iam_member" "agents_run_sandbox" {
   member   = "serviceAccount:${google_service_account.agents.email}"
 }
 
+# Job 実行の LRO をポーリング(run.operations.get / run.executions.get)するため、
+# プロジェクトレベルの viewer を付与。Job 単位の developer はオペレーション読み取りを
+# 含まないため必要(operations はプロジェクト/ロケーション単位の別リソース)。
+resource "google_project_iam_member" "agents_run_viewer" {
+  project = var.project_id
+  role    = "roles/run.viewer"
+  member  = "serviceAccount:${google_service_account.agents.email}"
+}
+
 # agents が sandbox SA を使って Job を起動できるようにする。
 resource "google_service_account_iam_member" "agents_use_sandbox_sa" {
   service_account_id = google_service_account.sandbox.name

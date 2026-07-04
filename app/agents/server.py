@@ -9,14 +9,14 @@ import binascii
 import os
 from collections.abc import Callable
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from app.agents.inbox import record_event
 from app.agents.llm import AgentLLM
 from app.agents.processor import process_event
 from app.agents.runtime import build_event_handler
-from app.db import get_db
+from app.db import SessionLocal, get_db
 
 orchestrator = FastAPI(title="tech-support orchestrator")
 
@@ -44,13 +44,18 @@ def get_llm() -> AgentLLM:
     return FakeLLM()
 
 
-def get_event_processor(
-    db: Session = Depends(get_db), llm: AgentLLM = Depends(get_llm)
-) -> Callable[[str], None]:
-    handler = build_event_handler(db, llm)
+def get_event_processor(llm: AgentLLM = Depends(get_llm)) -> Callable[[str], None]:
+    """本番の段階処理。push リクエスト応答後にバックグラウンドで走るため、
+    リクエストとは独立した自前のセッションを都度開いて処理する
+    (リクエストセッションは応答後に閉じられるため使えない)。"""
 
     def process(event_id: str) -> None:
-        process_event(db, event_id=event_id, handler=handler)
+        db = SessionLocal()
+        try:
+            handler = build_event_handler(db, llm)
+            process_event(db, event_id=event_id, handler=handler)
+        finally:
+            db.close()
 
     return process
 
@@ -58,6 +63,7 @@ def get_event_processor(
 @orchestrator.post("/pubsub/push")
 async def pubsub_push(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     process: Callable[[str], None] = Depends(get_event_processor),
 ) -> Response:
@@ -72,7 +78,9 @@ async def pubsub_push(
     except (binascii.Error, ValueError) as exc:
         raise HTTPException(status_code=400, detail="invalid message data") from exc
 
-    # 新規受付なら処理する。再配信(record_event=False)は ack のみ。
+    # 新規受付なら即 ack し、重い段階処理(sandbox/修正ループ/PR)は応答後に
+    # バックグラウンドで実行する。同期実行だと Cloud Run のリクエストタイムアウトや
+    # Pub/Sub の ack 期限を超えて 504 になるため分離する。再配信は ack のみ。
     if record_event(db, event_id=message["messageId"], payload=payload):
-        process(message["messageId"])
+        background_tasks.add_task(process, message["messageId"])
     return Response(status_code=204)

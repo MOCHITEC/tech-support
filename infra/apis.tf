@@ -13,6 +13,7 @@ locals {
     "compute.googleapis.com",
     "vpcaccess.googleapis.com",
     "aiplatform.googleapis.com", # Gemini API
+    "dns.googleapis.com",        # サンドボックス VPC 内の Private DNS(restricted VIP 解決)
   ]
 }
 
