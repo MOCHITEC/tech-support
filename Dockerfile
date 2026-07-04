@@ -11,5 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY alembic.ini .
 COPY app/ ./app/
+# 仕様書はトリアージの判定基準(run_triage が既定で /app/docs/仕様書.md を読む)。
+COPY docs/ ./docs/
 
 CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
