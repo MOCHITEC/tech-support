@@ -8,6 +8,7 @@ import json
 import os
 from typing import Protocol
 
+from app.agents.config import sanitize_secret
 from app.agents.schemas import PipelineResult
 from app.agents.workspace import validate_write_paths
 
@@ -72,7 +73,7 @@ class GitHubClient:
 
     def __init__(self, repository: str | None = None, token: str | None = None):
         self._repository = repository or os.environ["GITHUB_REPOSITORY"]
-        self._token = token or os.environ["GITHUB_TOKEN"]
+        self._token = sanitize_secret(token or os.environ["GITHUB_TOKEN"])
 
     def _post(self, path: str, payload: dict) -> str:
         import httpx

@@ -9,6 +9,7 @@ from collections.abc import Callable
 
 from pydantic import BaseModel
 
+from app.agents.config import sanitize_secret
 from app.agents.schemas import CodePatch, GeneratedTest, TicketInput, TriageResult
 
 _DEFAULT_MODEL = "gemini-2.0-flash"
@@ -39,7 +40,7 @@ class GeminiLLM:
             from google import genai
             from google.genai import types
 
-            client = genai.Client(api_key=api_key)
+            client = genai.Client(api_key=sanitize_secret(api_key or ""))
 
             def _json(prompt: str, schema: type[BaseModel]) -> str:
                 return client.models.generate_content(
