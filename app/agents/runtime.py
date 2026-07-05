@@ -66,9 +66,12 @@ def _reproduce_fix(ticket: Ticket, llm: AgentLLM) -> PipelineResult:
 
 
 def _create_pr(ticket: Ticket, result: PipelineResult) -> str:
+    # PR の作成先(ブランチを切る base かつ PR の target)。既定は main、
+    # デモ運用では PR_BASE_BRANCH=demo で demo ブランチへ向ける。
+    base = os.environ.get("PR_BASE_BRANCH", "main")
     clone = _clone_repo(tempfile.mkdtemp())
     return create_fix_pr(
-        ticket, result, repo=GitRepoOps(clone), github=GitHubClient()
+        ticket, result, repo=GitRepoOps(clone, base=base), github=GitHubClient(), base=base
     )
 
 

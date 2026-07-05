@@ -6,6 +6,9 @@ region     = "asia-northeast1"
 github_repository     = "MOCHITEC/tech-support"
 github_default_branch = "main"
 
+# エージェントが自動生成する PR の作成先ブランチ(既定 demo)。
+pr_base_branch = "demo"
+
 # Cloud SQL(ハッカソンは最小構成)
 db_tier = "db-f1-micro"
 

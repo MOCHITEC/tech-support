@@ -184,6 +184,11 @@ resource "google_cloud_run_v2_service" "agents" {
         name  = "PR_REVIEWERS"
         value = var.pr_reviewers
       }
+      # エージェント PR の作成先ブランチ(main を汚さないため demo に向ける)。
+      env {
+        name  = "PR_BASE_BRANCH"
+        value = var.pr_base_branch
+      }
       env {
         name = "GITHUB_APP_PRIVATE_KEY"
         value_source {
