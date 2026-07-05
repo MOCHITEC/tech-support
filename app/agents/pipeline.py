@@ -122,8 +122,14 @@ def reproduce_and_fix(
         sources = {
             rel: ws.read(rel) for rel in _EDITABLE_SOURCES if (ws.root / rel).exists()
         }
-        patch = llm.propose_fix(ticket, spec, sources, test, prior_error)
-        validate_write_paths(patch.files.keys())
+        try:
+            patch = llm.propose_fix(ticket, spec, sources, test, prior_error)
+            validate_write_paths(patch.files.keys())
+        except Exception as exc:  # noqa: BLE001
+            # LLM 出力境界: 空応答(.text=None)や不正パス等は致命エラーにせず、
+            # エラーを次の試行に渡して作り直す(1回の空応答でループ全体を落とさない)。
+            prior_error = f"修正生成に失敗しました(再試行します): {exc}"
+            continue
         ws.write_files(patch.files)
 
         passed, output = run_tests(ws, test.filename)

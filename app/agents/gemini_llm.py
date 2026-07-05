@@ -15,6 +15,25 @@ from app.agents.schemas import CodePatch, GeneratedTest, TicketInput, TriageResu
 _DEFAULT_MODEL = "gemini-2.5-flash"
 
 
+def _require_text(response) -> str:
+    """Gemini 応答からテキストを取り出す。
+
+    空(テキストパートが無い = finish_reason が MAX_TOKENS/SAFETY 等)のとき .text は
+    None を返す。それを黙って下流に流すと model_validate_json(None) が例外になり
+    パイプライン全体が落ちるため、ここで明示的な例外にして呼び出し側(修正ループ)が
+    再試行/エスカレーションできるようにする。
+    """
+    text = response.text
+    if not text:
+        reason = None
+        try:
+            reason = response.candidates[0].finish_reason
+        except (AttributeError, IndexError, TypeError):
+            pass
+        raise ValueError(f"Gemini が空応答を返しました (finish_reason={reason})")
+    return text
+
+
 def _ticket_block(ticket: TicketInput) -> str:
     return (
         f"タイトル: {ticket.title}\n"
@@ -52,21 +71,26 @@ class GeminiLLM:
                 client = genai.Client(api_key=sanitize_secret(api_key or ""))
 
             def _json(prompt: str, schema: type[BaseModel]) -> str:
-                return client.models.generate_content(
-                    model=model,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=schema,
-                        # 判定/生成/修正は再現性を優先し決定論的にする。
-                        temperature=0.0,
-                    ),
-                ).text
+                return _require_text(
+                    client.models.generate_content(
+                        model=model,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            response_schema=schema,
+                            # 判定/生成/修正は再現性を優先し決定論的にする。
+                            temperature=0.0,
+                            # 全文パッチは長くなり得る。出力枠を広げて MAX_TOKENS 由来の
+                            # 空応答(.text=None)を避ける。
+                            max_output_tokens=32768,
+                        ),
+                    )
+                )
 
             def _text(prompt: str) -> str:
-                return client.models.generate_content(
-                    model=model, contents=prompt
-                ).text
+                return _require_text(
+                    client.models.generate_content(model=model, contents=prompt)
+                )
 
             self._json_generate = _json
             self._text_generate = _text

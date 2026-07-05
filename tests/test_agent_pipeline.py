@@ -49,6 +49,69 @@ def test_pipeline_reproduces_and_fixes_double_booking(tmp_path):
     assert "app/services.py" in result.patch.files
 
 
+class _FlakyFixLLM(FakeLLM):
+    """propose_fix が最初の `fail_times` 回だけ空応答(例外)を返すフェイク。
+
+    本番で Gemini が稀に空応答(.text=None)を返し propose_fix が例外になった事象を
+    再現する。パイプラインはこれで落ちず、次の試行で作り直すべき。
+    """
+
+    def __init__(self, fail_times: int):
+        self.fail_times = fail_times
+        self.calls = 0
+
+    def propose_fix(self, *args, **kwargs):
+        self.calls += 1
+        if self.calls <= self.fail_times:
+            raise ValueError("Gemini が空応答を返しました (finish_reason=MAX_TOKENS)")
+        return super().propose_fix(*args, **kwargs)
+
+
+def test_pipeline_retries_when_fix_generation_fails(tmp_path):
+    llm = _FlakyFixLLM(fail_times=1)
+    ticket = TicketInput(
+        title="同じ時間に二重予約できてしまう",
+        steps="1. 会議室Aを10-11時で予約\n2. 同じ枠でもう一度予約",
+        tobe="2回目は重複エラーになる",
+        asis="2回目も予約できてしまう",
+    )
+
+    result = run_pipeline(
+        ticket,
+        ticket_id=1,
+        llm=llm,
+        workspace_root=tmp_path / "ws",
+        source_root=_buggy_source_root(tmp_path),
+    )
+
+    assert result.fixed is True  # 空応答で落ちず、再試行で修正できる
+    assert llm.calls >= 2
+
+
+def test_pipeline_escalates_when_fix_generation_always_fails(tmp_path):
+    llm = _FlakyFixLLM(fail_times=99)
+    ticket = TicketInput(
+        title="同じ時間に二重予約できてしまう",
+        steps="1. 会議室Aを10-11時で予約\n2. 同じ枠でもう一度予約",
+        tobe="2回目は重複エラーになる",
+        asis="2回目も予約できてしまう",
+    )
+
+    # 常に空応答でも例外で落ちず、上限まで再試行してエスカレーションする。
+    result = run_pipeline(
+        ticket,
+        ticket_id=1,
+        llm=llm,
+        workspace_root=tmp_path / "ws",
+        source_root=_buggy_source_root(tmp_path),
+        max_attempts=3,
+    )
+
+    assert result.fixed is False
+    assert result.escalated is True
+    assert llm.calls == 3
+
+
 def test_pipeline_routes_feature_request_to_requirement_doc(tmp_path):
     ticket = TicketInput(
         title="繰り返し予約の機能がほしい",

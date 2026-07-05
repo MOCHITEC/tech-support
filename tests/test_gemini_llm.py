@@ -5,8 +5,24 @@
 import pytest
 from pydantic import ValidationError
 
-from app.agents.gemini_llm import GeminiLLM
+from app.agents.gemini_llm import GeminiLLM, _require_text
 from app.agents.schemas import CodePatch, GeneratedTest, TicketInput, TriageResult
+
+
+class _Resp:
+    def __init__(self, text, finish_reason="STOP"):
+        self.text = text
+        self.candidates = [type("C", (), {"finish_reason": finish_reason})()]
+
+
+def test_require_text_returns_text():
+    assert _require_text(_Resp("hello")) == "hello"
+
+
+def test_require_text_raises_on_empty_response():
+    # .text が None(テキストパート無し)なら黙って返さず明示エラーにする。
+    with pytest.raises(ValueError, match="MAX_TOKENS"):
+        _require_text(_Resp(None, finish_reason="MAX_TOKENS"))
 
 
 class FakeGen:
