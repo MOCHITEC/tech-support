@@ -33,6 +33,12 @@ variable "github_app_installation_id" {
   default     = "144466688"
 }
 
+variable "pr_reviewers" {
+  type        = string
+  description = "自動生成 PR に付けるレビュアー(GitHub ログインのカンマ区切り)。"
+  default     = "EndoRai88"
+}
+
 variable "github_default_branch" {
   type        = string
   description = "保護・デプロイ対象のブランチ。"

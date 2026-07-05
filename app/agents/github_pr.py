@@ -72,11 +72,22 @@ def create_fix_pr(
 class GitHubClient:
     """GitHub REST API で PR を作成する(GitHub App の installation token を使用)。"""
 
-    def __init__(self, repository: str | None = None, token: str | None = None):
+    def __init__(
+        self,
+        repository: str | None = None,
+        token: str | None = None,
+        reviewers: list[str] | None = None,
+    ):
         self._repository = repository or os.environ["GITHUB_REPOSITORY"]
         self._token = sanitize_secret(token) if token is not None else github_token()
+        # PR に付けるレビュアー(カンマ区切り env。未設定なら付けない)。
+        self._reviewers = (
+            reviewers
+            if reviewers is not None
+            else [r.strip() for r in os.environ.get("PR_REVIEWERS", "").split(",") if r.strip()]
+        )
 
-    def _post(self, path: str, payload: dict) -> str:
+    def _post(self, path: str, payload: dict) -> dict:
         import httpx
 
         resp = httpx.post(
@@ -89,10 +100,20 @@ class GitHubClient:
             timeout=30,
         )
         resp.raise_for_status()
-        return resp.json()["html_url"]
+        return resp.json()
 
     def create_pull_request(self, *, head: str, base: str, title: str, body: str) -> str:
-        return self._post("pulls", {"head": head, "base": base, "title": title, "body": body})
+        pr = self._post("pulls", {"head": head, "base": base, "title": title, "body": body})
+        if self._reviewers:
+            # レビュー依頼は付帯処理: 失敗しても PR 自体は成立させる。
+            try:
+                self._post(
+                    f"pulls/{pr['number']}/requested_reviewers",
+                    {"reviewers": self._reviewers},
+                )
+            except Exception as exc:  # noqa: BLE001
+                print(f"レビュアー依頼に失敗しました({self._reviewers}): {exc}")
+        return pr["html_url"]
 
     def create_issue(self, *, title: str, body: str, labels: list[str]) -> str:
-        return self._post("issues", {"title": title, "body": body, "labels": labels})
+        return self._post("issues", {"title": title, "body": body, "labels": labels})["html_url"]

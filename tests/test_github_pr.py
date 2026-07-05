@@ -3,6 +3,7 @@
 git/GitHub はフェイクに差し替え、ブランチ名・PR 本文・最終パスガード・
 オーケストレーションを検証する(実際の push/API 呼び出しは結合部)。
 """
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -91,3 +92,57 @@ def test_create_fix_pr_requires_fixed_result():
     result.fixed = False
     with pytest.raises(ValueError):
         create_fix_pr(_ticket(), result, repo=FakeRepo(), github=FakeGitHub())
+
+
+def test_github_client_requests_reviewers(monkeypatch):
+    import httpx
+
+    from app.agents.github_pr import GitHubClient
+
+    posts = []
+
+    class _Resp:
+        def __init__(self, path):
+            self._path = path
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"html_url": "https://github.com/o/r/pull/9", "number": 9}
+
+    def fake_post(url, **kwargs):
+        posts.append((url, json.loads(kwargs["content"])))
+        return _Resp(url)
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    client = GitHubClient(repository="o/r", token="t", reviewers=["EndoRai88"])
+    url = client.create_pull_request(head="b", base="main", title="t", body="x")
+
+    assert url == "https://github.com/o/r/pull/9"
+    assert posts[0][0].endswith("/repos/o/r/pulls")
+    assert posts[1][0].endswith("/repos/o/r/pulls/9/requested_reviewers")
+    assert posts[1][1] == {"reviewers": ["EndoRai88"]}
+
+
+def test_github_client_skips_reviewers_when_none(monkeypatch):
+    import httpx
+
+    from app.agents.github_pr import GitHubClient
+
+    posts = []
+
+    class _Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"html_url": "https://github.com/o/r/pull/9", "number": 9}
+
+    monkeypatch.setattr(
+        httpx, "post", lambda url, **kw: (posts.append(url), _Resp())[1]
+    )
+    client = GitHubClient(repository="o/r", token="t", reviewers=[])
+    client.create_pull_request(head="b", base="main", title="t", body="x")
+
+    assert posts == ["https://api.github.com/repos/o/r/pulls"]

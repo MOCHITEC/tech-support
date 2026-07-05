@@ -179,6 +179,11 @@ resource "google_cloud_run_v2_service" "agents" {
         name  = "GITHUB_APP_INSTALLATION_ID"
         value = var.github_app_installation_id
       }
+      # 作成した PR に付けるレビュアー(カンマ区切り)。
+      env {
+        name  = "PR_REVIEWERS"
+        value = var.pr_reviewers
+      }
       env {
         name = "GITHUB_APP_PRIVATE_KEY"
         value_source {
