@@ -25,12 +25,17 @@ class GitRepoOps:
         self.author_email = author_email
 
     def _git(self, *args: str) -> None:
-        subprocess.run(
+        proc = subprocess.run(
             ["git", "-C", str(self.root), *args],
             capture_output=True,
             text=True,
-            check=True,
         )
+        if proc.returncode != 0:
+            # git の stderr を握り潰さず例外に載せる(push 失敗の原因追跡のため)。
+            raise RuntimeError(
+                f"git {args[0]} failed (exit {proc.returncode}): "
+                f"{(proc.stderr or proc.stdout).strip()}"
+            )
 
     def commit_and_push(self, *, branch: str, files: dict[str, str], message: str) -> None:
         self._git("checkout", self.base)
