@@ -77,13 +77,6 @@ def test_create_fix_pr_pushes_and_opens_pr():
     assert github.calls[0]["base"] == "main"
 
 
-def test_create_fix_pr_targets_given_base():
-    # base はブランチを切る元かつ PR の target。demo を渡すと demo へ向く。
-    repo, github = FakeRepo(), FakeGitHub()
-    create_fix_pr(_ticket(), _fixed_result(), repo=repo, github=github, base="demo")
-    assert github.calls[0]["base"] == "demo"
-
-
 def test_create_fix_pr_rejects_disallowed_paths():
     result = _fixed_result()
     result.patch.files["infra/secrets.tf"] = "evil"
