@@ -30,6 +30,7 @@ def run_pipeline(
     llm: AgentLLM,
     workspace_root: Path,
     spec_path: Path | None = None,
+    source_root: Path | None = None,
     max_attempts: int = _MAX_ATTEMPTS,
 ) -> PipelineResult:
     spec = (spec_path or _DEFAULT_SPEC).read_text(encoding="utf-8")
@@ -62,6 +63,7 @@ def run_pipeline(
         rationale=triage.rationale,
         spec_citation=triage.spec_citation,
         max_attempts=max_attempts,
+        source_root=source_root,
     )
 
 

@@ -1,6 +1,27 @@
+import shutil
+from pathlib import Path
+
 from app.agents.fake_llm import FakeLLM
 from app.agents.pipeline import run_pipeline
 from app.agents.schemas import TicketInput
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_BUGGY_SERVICES = Path(__file__).resolve().parent / "fixtures" / "services_buggy.py"
+
+
+def _buggy_source_root(tmp_path):
+    """planted bug ① を確実に含む再現用ソースツリーを組み立てる。
+
+    実 app/ を複製し app/services.py だけを既知のバグあり版で上書きするため、
+    実装が修正済みのブランチ(修正 PR の CI 等)でも再現→修正を安定検証できる。
+    """
+    src = tmp_path / "src"
+    shutil.copytree(_REPO_ROOT / "app", src / "app")
+    (src / "tests").mkdir(parents=True)
+    shutil.copy2(_REPO_ROOT / "tests" / "conftest.py", src / "tests" / "conftest.py")
+    shutil.copy2(_REPO_ROOT / "pytest.ini", src / "pytest.ini")
+    shutil.copy2(_BUGGY_SERVICES, src / "app" / "services.py")
+    return src
 
 
 def test_pipeline_reproduces_and_fixes_double_booking(tmp_path):
@@ -12,7 +33,11 @@ def test_pipeline_reproduces_and_fixes_double_booking(tmp_path):
     )
 
     result = run_pipeline(
-        ticket, ticket_id=1, llm=FakeLLM(), workspace_root=tmp_path / "ws"
+        ticket,
+        ticket_id=1,
+        llm=FakeLLM(),
+        workspace_root=tmp_path / "ws",
+        source_root=_buggy_source_root(tmp_path),
     )
 
     assert result.kind == "bug"
