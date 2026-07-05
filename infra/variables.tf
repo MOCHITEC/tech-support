@@ -45,6 +45,12 @@ variable "github_default_branch" {
   default     = "main"
 }
 
+variable "pr_base_branch" {
+  type        = string
+  description = "エージェントが自動生成する PR の作成先ブランチ(main を汚さないためデモでは demo)。"
+  default     = "demo"
+}
+
 variable "db_tier" {
   type        = string
   description = "Cloud SQL のマシンタイプ。ハッカソンは最小で十分。"
