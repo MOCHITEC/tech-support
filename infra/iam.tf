@@ -80,9 +80,10 @@ resource "google_project_iam_member" "agents_aiplatform" {
 
 resource "google_secret_manager_secret_iam_member" "agents_secrets" {
   for_each = {
-    db     = google_secret_manager_secret.db_password.id
-    github = google_secret_manager_secret.github_bot_pat.id
-    gemini = google_secret_manager_secret.gemini_api_key.id
+    db        = google_secret_manager_secret.db_password.id
+    github    = google_secret_manager_secret.github_bot_pat.id
+    gemini    = google_secret_manager_secret.gemini_api_key.id
+    githubapp = google_secret_manager_secret.github_app_private_key.id
   }
   secret_id = each.value
   role      = "roles/secretmanager.secretAccessor"

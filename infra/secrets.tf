@@ -71,3 +71,13 @@ resource "google_secret_manager_secret" "gemini_api_key" {
   }
   depends_on = [google_project_service.enabled]
 }
+
+# GitHub App の秘密鍵(PEM)。値は apply 後に手動投入する:
+#   gcloud secrets versions add tech-support-github-app-private-key --data-file=key.pem
+resource "google_secret_manager_secret" "github_app_private_key" {
+  secret_id = "${var.name_prefix}-github-app-private-key"
+  replication {
+    auto {}
+  }
+  depends_on = [google_project_service.enabled]
+}

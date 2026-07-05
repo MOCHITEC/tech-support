@@ -170,6 +170,24 @@ resource "google_cloud_run_v2_service" "agents" {
         name  = "GITHUB_REPOSITORY"
         value = var.github_repository
       }
+      # GitHub App 認証(installation token を発行して push/PR/Issue する)。
+      env {
+        name  = "GITHUB_APP_ID"
+        value = var.github_app_id
+      }
+      env {
+        name  = "GITHUB_APP_INSTALLATION_ID"
+        value = var.github_app_installation_id
+      }
+      env {
+        name = "GITHUB_APP_PRIVATE_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.github_app_private_key.secret_id
+            version = "latest"
+          }
+        }
+      }
       env {
         name = "DB_PASSWORD"
         value_source {

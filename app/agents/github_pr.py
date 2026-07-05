@@ -9,6 +9,7 @@ import os
 from typing import Protocol
 
 from app.agents.config import sanitize_secret
+from app.agents.github_app import github_token
 from app.agents.schemas import PipelineResult
 from app.agents.workspace import validate_write_paths
 
@@ -69,11 +70,11 @@ def create_fix_pr(
 
 
 class GitHubClient:
-    """GitHub REST API で PR を作成する(ボット PAT を使用)。"""
+    """GitHub REST API で PR を作成する(GitHub App の installation token を使用)。"""
 
     def __init__(self, repository: str | None = None, token: str | None = None):
         self._repository = repository or os.environ["GITHUB_REPOSITORY"]
-        self._token = sanitize_secret(token or os.environ["GITHUB_TOKEN"])
+        self._token = sanitize_secret(token) if token is not None else github_token()
 
     def _post(self, path: str, payload: dict) -> str:
         import httpx

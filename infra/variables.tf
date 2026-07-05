@@ -21,6 +21,18 @@ variable "github_repository" {
   default     = "MOCHITEC/tech-support"
 }
 
+variable "github_app_id" {
+  type        = string
+  description = "GitHub App の App ID(push/PR/Issue 用の installation token 発行に使う)。"
+  default     = "4218791"
+}
+
+variable "github_app_installation_id" {
+  type        = string
+  description = "GitHub App のインストール ID(MOCHITEC/tech-support へのインストール)。"
+  default     = "144466688"
+}
+
 variable "github_default_branch" {
   type        = string
   description = "保護・デプロイ対象のブランチ。"

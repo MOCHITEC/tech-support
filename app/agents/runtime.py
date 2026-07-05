@@ -13,9 +13,9 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.agents.config import sanitize_secret
 from app.agents.feature import file_feature_issue
 from app.agents.fix_stage import run_full_pipeline_for_ticket, run_refix_for_ticket
+from app.agents.github_app import github_token
 from app.agents.github_pr import GitHubClient, create_fix_pr
 from app.agents.llm import AgentLLM
 from app.agents.pipeline import reproduce_and_fix
@@ -29,7 +29,7 @@ _SPEC_REL = "docs/仕様書.md"
 
 def _clone_repo(dest: str) -> Path:
     repo = os.environ["GITHUB_REPOSITORY"]
-    token = sanitize_secret(os.environ["GITHUB_TOKEN"])
+    token = github_token()
     url = f"https://x-access-token:{token}@github.com/{repo}.git"
     subprocess.run(["git", "clone", url, dest], check=True, capture_output=True, text=True)
     return Path(dest)
