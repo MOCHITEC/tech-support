@@ -6,6 +6,8 @@
 **DevOps × AI Agent Hackathon 2026**(Findy 主催 / Google Cloud 協賛)応募作品。
 
 - 公開アプリ(デモ): https://tech-support-app-3z3aqgv5sq-an.a.run.app
+- デモ動画: `docs/media/tech-support-demo.mp4`(報告 → PR 自動作成・マージ → 修正確認の一連。提出時は限定公開 URL を記載)
+- アーキテクチャ図: [`docs/architecture.svg`](docs/architecture.svg)
 
 ---
 
